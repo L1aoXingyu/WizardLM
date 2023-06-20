@@ -66,12 +66,8 @@ def check_cyber_kyushu_response_error_code(resultCode=-1):
 # Function to load data from JSON file
 def load_json_file(file_path):
     try:
-        if file_path.endswith("json"):
-            with open(file_path, 'r') as f:
-                data = json.load(f)
-        elif file_path.endswith("jsonl"):
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = [json.loads(line) for line in f.readlines()]
+        with open(file_path, 'r') as f:
+            data = json.load(f)
         print(f'{file_path} len: {len(data)}')
         return data
     except FileNotFoundError:
