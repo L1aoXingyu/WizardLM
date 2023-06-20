@@ -1,4 +1,5 @@
 import argparse
+import contextlib
 import pprint
 import sys
 import os
@@ -10,11 +11,9 @@ from human_eval.data import write_jsonl, read_problems, stream_jsonl
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-try:
+with contextlib.suppress(Exception):
     if torch.backends.mps.is_available():
         device = "mps"
-except:
-    pass
 
 def extract_text(prompt, remove_lines=True):
     token = '\"\"\"'

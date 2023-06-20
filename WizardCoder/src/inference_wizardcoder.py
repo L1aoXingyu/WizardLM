@@ -8,6 +8,12 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, GenerationConfig
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
+IGNORE_INDEX = -100
+DEFAULT_PAD_TOKEN = "[PAD]"
+DEFAULT_EOS_TOKEN = "<|endoftext|>"
+DEFAULT_BOS_TOKEN = "<|endoftext|>"
+DEFAULT_UNK_TOKEN = "<|endoftext|>"
+
 try:
     if torch.backends.mps.is_available():
         device = "mps"
@@ -70,6 +76,17 @@ def main(
     )
 
     tokenizer = AutoTokenizer.from_pretrained(base_model)
+    if "starcoder" in base_model:
+        tokenizer.pad_token = tokenizer.eos_token
+    #     tokenizer.add_special_tokens(
+    #         {
+    #             "eos_token": DEFAULT_EOS_TOKEN,
+    #             "bos_token": DEFAULT_BOS_TOKEN,
+    #             "unk_token": DEFAULT_UNK_TOKEN,
+    #             "pad_token": DEFAULT_PAD_TOKEN,
+    #         }
+    #     )
+
     if device == "cuda":
         model = AutoModelForCausalLM.from_pretrained(
             base_model,
