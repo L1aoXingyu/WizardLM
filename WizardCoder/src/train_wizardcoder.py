@@ -21,10 +21,8 @@ from typing import Optional, Dict, Sequence
 import torch
 import torch.distributed
 import transformers
-from torch.utils.data import Dataset
 from transformers import Trainer
 from datasets import load_dataset
-import utils
 
 IGNORE_INDEX = -100
 DEFAULT_PAD_TOKEN = "[PAD]"
@@ -162,7 +160,7 @@ def train_tokenize_function(examples, tokenizer):
         sources = [
             prompt_input.format_map(dict(instruction=instruction, input=input)) if input != "" \
             else prompt_no_input.format_map(dict(instruction=instruction)) \
-            for instruction, input in zip(examples['instruction'], examples['input']) 
+            for instruction, input in zip(examples['instruction'], examples['input'])
         ]
     else:
         sources = [
@@ -177,7 +175,7 @@ def train_tokenize_function(examples, tokenizer):
 def train():
     parser = transformers.HfArgumentParser((ModelArguments, DataArguments, TrainingArguments))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
-        
+
     model = transformers.AutoModelForCausalLM.from_pretrained(
         model_args.model_name_or_path,
         cache_dir=training_args.cache_dir,
@@ -207,7 +205,7 @@ def train():
         )
 
     raw_train_datasets = load_dataset('json', data_files=data_args.data_path, split="train", cache_dir=training_args.cache_dir)
-    if training_args.local_rank > 0: 
+    if training_args.local_rank > 0:
         torch.distributed.barrier()
 
     train_dataset = raw_train_datasets.map(
@@ -223,12 +221,12 @@ def train():
 
     if training_args.local_rank == 0:
         torch.distributed.barrier()
-    
+
     if training_args.local_rank == 0:
         print(len(train_dataset))
         for index in random.sample(range(len(train_dataset)), 3):
             print(f"Sample {index} of the training set: {train_dataset[index]}.")
-    
+
     data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
     data_module = dict(train_dataset=train_dataset, eval_dataset=None, data_collator=data_collator)
 

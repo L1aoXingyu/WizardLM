@@ -8,11 +8,7 @@ import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, GenerationConfig
 from human_eval.data import write_jsonl, read_problems, stream_jsonl
 
-if torch.cuda.is_available():
-    device = "cuda"
-else:
-    device = "cpu"
-
+device = "cuda" if torch.cuda.is_available() else "cpu"
 try:
     if torch.backends.mps.is_available():
         device = "mps"
@@ -35,14 +31,13 @@ def extract_text(prompt, remove_lines=True):
     return output
 
 def generate_prompt(input):
-    INSTRUCTION = f"""Below is an instruction that describes a task. Write a response that appropriately completes the request.
+    return f"""Below is an instruction that describes a task. Write a response that appropriately completes the request.
 
 ### Instruction:
 Create a Python script for this problem:
 {input}
 
 ### Response:"""
-    return INSTRUCTION
 
 def get_model(
     load_8bit: bool = False,
@@ -74,7 +69,7 @@ def get_model(
     model.eval()
     if torch.__version__ >= "2" and sys.platform != "win32":
         model = torch.compile(model)
-    
+
     return tokenizer, model
 
 
@@ -90,6 +85,7 @@ def main():
     parser.add_argument('--max_len', type=int, default=512, help="")
     parser.add_argument('--decoding_style', type=str, default='sampling', help="")
     parser.add_argument('--num_seqs_per_iter', type=int, default=50, help='')
+    parser.add_argument('--greedy_decode', action='store_true', help='')
     parser.add_argument('--overwrite', action='store_true', help='')
 
     args = parser.parse_args()
@@ -104,22 +100,22 @@ def main():
     task_ids = sorted(problems.keys())[args.start_index: args.end_index]
     prompts = [problems[task_id]['prompt'] for task_id in task_ids]
     num_samples = len(prompts)
-    print("Number of samples: {}".format(num_samples))
+    print(f"Number of samples: {num_samples}")
 
     tokenizer, model = get_model(base_model=args.model)
     generation_config = GenerationConfig(
         pad_token_id=tokenizer.pad_token_id,
-        do_sample=True,
+        do_sample=not args.greedy_decode,
         temperature=args.temperature,
         max_length=args.max_len,
         num_return_sequences=args.num_seqs_per_iter,
         eos_token_id=tokenizer.eos_token_id,
-        top_p=0.95
+        top_p=0.95,
     )
 
     print(f"Loaded {args.model}.")
     for i in tqdm(range(num_samples), ncols=0, total=num_samples):
-        output_file = args.output_path + '/{}.jsonl'.format(args.start_index + i)
+        output_file = f'{args.output_path}/{args.start_index + i}.jsonl'
 
         if os.path.exists(output_file) and not args.overwrite:
             print(f'Skip {output_file} as it already exists')
@@ -142,11 +138,10 @@ def main():
         for _ in tqdm(range(loops), total=loops, leave=False, ncols=0):
 
             with torch.no_grad():
-                if args.decoding_style == 'sampling':
-                    gen_tokens = model.generate(
-                        **encoding,
-                        generation_config=generation_config
-                    )
+                gen_tokens = model.generate(
+                    **encoding,
+                    generation_config=generation_config
+                )
 
             if gen_tokens is not None:
                 gen_seqs = tokenizer.batch_decode(gen_tokens, skip_special_tokens=True)
@@ -157,7 +152,7 @@ def main():
                 assert len(ids_batch) == 1
                 task_id = ids_batch[0]
 
-                for seq_idx, gen_seq in enumerate(gen_seqs):
+                for gen_seq in gen_seqs:
                     completion_seq = gen_seq.split("### Response:")[1]
                     completion_seq = completion_seq.replace('\t', '    ')
                     all_code = gen_seq.replace('\t', '    ')
@@ -169,7 +164,7 @@ def main():
                          }
                     )
 
-        print("Saving results to {}".format(output_file))
+        print(f"Saving results to {output_file}")
         write_jsonl(output_file, completion_seqs)
 
 

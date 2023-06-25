@@ -2,16 +2,17 @@ import sys
 import os
 import fire
 import torch
-import transformers
-import json
 import jsonlines
 
 from transformers import AutoTokenizer, AutoModelForCausalLM, GenerationConfig
 
-if torch.cuda.is_available():
-    device = "cuda"
-else:
-    device = "cpu"
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
+IGNORE_INDEX = -100
+DEFAULT_PAD_TOKEN = "[PAD]"
+DEFAULT_EOS_TOKEN = "<|endoftext|>"
+DEFAULT_BOS_TOKEN = "<|endoftext|>"
+DEFAULT_UNK_TOKEN = "<|endoftext|>"
 
 try:
     if torch.backends.mps.is_available():
@@ -52,8 +53,7 @@ def evaluate(
             max_new_tokens=max_new_tokens,
         )
     s = generation_output.sequences
-    output = tokenizer.batch_decode(s, skip_special_tokens=True)
-    return output
+    return tokenizer.batch_decode(s, skip_special_tokens=True)
 
 
 def generate_prompt(instruction, input=None):
@@ -70,18 +70,30 @@ def main(
     base_model: str = "Model_Path",
     input_data_path = "Input.jsonl",
     output_data_path = "Output.jsonl",
-):
+):  # sourcery skip: avoid-builtin-shadow
     assert base_model, (
         "Please specify a --base_model, e.g. --base_model='bigcode/starcoder'"
     )
 
     tokenizer = AutoTokenizer.from_pretrained(base_model)
+    if "starcoder" in base_model:
+        tokenizer.pad_token = tokenizer.eos_token
+    #     tokenizer.add_special_tokens(
+    #         {
+    #             "eos_token": DEFAULT_EOS_TOKEN,
+    #             "bos_token": DEFAULT_BOS_TOKEN,
+    #             "unk_token": DEFAULT_UNK_TOKEN,
+    #             "pad_token": DEFAULT_PAD_TOKEN,
+    #         }
+    #     )
+
     if device == "cuda":
         model = AutoModelForCausalLM.from_pretrained(
             base_model,
             load_in_8bit=load_8bit,
             torch_dtype=torch.float16,
-            device_map="auto",
+            # device_map="auto",
+            device_map="cuda"
         )
     elif device == "mps":
         model = AutoModelForCausalLM.from_pretrained(
@@ -102,7 +114,7 @@ def main(
     input_data = jsonlines.open(input_data_path, mode='r')
     output_data = jsonlines.open(output_data_path, mode='w')
 
-    for num, line in enumerate(input_data):
+    for line in input_data:
         one_data = line
         id = one_data["idx"]
         instruction = one_data["Instruction"]
