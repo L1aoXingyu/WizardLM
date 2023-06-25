@@ -1,5 +1,4 @@
 import argparse
-import contextlib
 import pprint
 import sys
 import os
@@ -10,10 +9,11 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, GenerationConfig
 from human_eval.data import write_jsonl, read_problems, stream_jsonl
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-
-with contextlib.suppress(Exception):
+try:
     if torch.backends.mps.is_available():
         device = "mps"
+except:
+    pass
 
 def extract_text(prompt, remove_lines=True):
     token = '\"\"\"'
@@ -85,6 +85,7 @@ def main():
     parser.add_argument('--max_len', type=int, default=512, help="")
     parser.add_argument('--decoding_style', type=str, default='sampling', help="")
     parser.add_argument('--num_seqs_per_iter', type=int, default=50, help='')
+    parser.add_argument('--greedy_decode', action='store_true', help='')
     parser.add_argument('--overwrite', action='store_true', help='')
 
     args = parser.parse_args()
@@ -104,12 +105,12 @@ def main():
     tokenizer, model = get_model(base_model=args.model)
     generation_config = GenerationConfig(
         pad_token_id=tokenizer.pad_token_id,
-        do_sample=True,
+        do_sample=not args.greedy_decode,
         temperature=args.temperature,
         max_length=args.max_len,
         num_return_sequences=args.num_seqs_per_iter,
         eos_token_id=tokenizer.eos_token_id,
-        top_p=0.95
+        top_p=0.95,
     )
 
     print(f"Loaded {args.model}.")
@@ -137,11 +138,10 @@ def main():
         for _ in tqdm(range(loops), total=loops, leave=False, ncols=0):
 
             with torch.no_grad():
-                if args.decoding_style == 'sampling':
-                    gen_tokens = model.generate(
-                        **encoding,
-                        generation_config=generation_config
-                    )
+                gen_tokens = model.generate(
+                    **encoding,
+                    generation_config=generation_config
+                )
 
             if gen_tokens is not None:
                 gen_seqs = tokenizer.batch_decode(gen_tokens, skip_special_tokens=True)

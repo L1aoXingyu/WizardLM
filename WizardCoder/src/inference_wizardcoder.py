@@ -92,7 +92,8 @@ def main(
             base_model,
             load_in_8bit=load_8bit,
             torch_dtype=torch.float16,
-            device_map="auto",
+            # device_map="auto",
+            device_map="cuda"
         )
     elif device == "mps":
         model = AutoModelForCausalLM.from_pretrained(
