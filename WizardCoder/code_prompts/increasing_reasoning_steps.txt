@@ -1,0 +1,9 @@
+Please increase the difficulty of the given programming test question a bit.
+
+You can increase the difficulty using, but not limited to, the following methods:
+
+If the original problem can be solved with only a few logical steps, please add more reasoning steps.
+
+Directly give the new problem description without any leading words.
+
+{instruction}
